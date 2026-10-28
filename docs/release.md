@@ -4,7 +4,22 @@
 
 Use Node 24 and the repository lockfile. Install dependencies only in the build job, run the checks in the README, and build with `npm run build`. Commit the generated `dist/index.mjs`, `dist/scorer.mjs`, `dist/detector/` provenance/assets, `dist/build-meta.json`, and `dist/THIRD_PARTY_NOTICES.txt` with the reviewed source. Do not publish a release until the exact commit has passed workflow and bundle checks. The consumer action runs packaged files and does not install npm dependencies, fetch a model, or require Go or Docker.
 
-A consumer workflow must pin the actual reviewed release commit, not a mutable branch, tag, or a SHA copied from an unrelated commit. The example deliberately uses `REPLACE_WITH_REVIEWED_40_CHARACTER_RELEASE_SHA`; it is not an installable revision. Never claim a release exists before publication.
+CI rebuilds `dist/` and fails if tracked or untracked distribution files differ from the checkout.
+Release Drafter updates a draft on pushes to `main`; it does not publish releases.
+Its suggested version depends on PR labels and previous releases, so check it before publishing.
+For the first release, set the tag and title to `v0.1.0` in GitHub's release editor.
+Review the notes, the target commit, the passing CI run, and the generated files first.
+
+To list mellon in GitHub Marketplace, open `action.yml` on GitHub and choose **Draft a release**.
+Select **Publish this Action to the GitHub Marketplace**, accept the Marketplace Developer Agreement if prompted, and choose a category.
+Review any metadata warnings before publishing.
+GitHub requires two-factor authentication for publication.
+See [GitHub's publishing guide](https://docs.github.com/en/actions/how-tos/create-and-publish-actions/publish-in-github-marketplace).
+Creating a draft alone does not publish the Action to Marketplace.
+
+A consumer workflow must pin the actual reviewed release commit, not a mutable branch, tag, or a SHA copied from an unrelated commit.
+The example deliberately uses `REPLACE_WITH_REVIEWED_40_CHARACTER_RELEASE_SHA`; it is not an installable revision.
+Never claim a release exists before publication.
 
 ## Security boundary
 

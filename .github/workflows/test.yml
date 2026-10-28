@@ -33,5 +33,12 @@ jobs:
         run: npm run test:parity
       - name: Build release files
         run: npm run build
+      - name: Check distribution is committed
+        run: |
+          if [ -n "$(git status --porcelain --untracked-files=all -- dist)" ]; then
+            echo "Built distribution differs from committed files. Run npm run build and commit dist/."
+            git status --short -- dist
+            exit 1
+          fi
       - name: Validate workflow and bundle metadata
         run: node scripts/validate-release.mjs
