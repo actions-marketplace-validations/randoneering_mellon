@@ -37,6 +37,11 @@ test('release drafter runs on main with a pinned action and does not publish', (
   assert.match(config.template, /\$CHANGES/);
 });
 
+test('Action metadata includes Marketplace branding', () => {
+  const metadata = parse(readFileSync(new URL('../../action.yml', import.meta.url), 'utf8'));
+  assert.deepEqual(metadata.branding, { icon: 'message-square', color: 'yellow' });
+});
+
 test('release validator accepts metadata and consumer template boundaries', () => {
   const result = spawnSync(process.execPath, ['scripts/validate-release.mjs'], {
     cwd: root, encoding: 'utf8', timeout: 30_000,

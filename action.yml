@@ -1,6 +1,9 @@
 name: Mellon submission moderation
 description: Apply a repository human-voice contribution policy to opening issues and pull requests.
 author: Mellon
+branding:
+  icon: message-square
+  color: yellow
 inputs:
   token:
     description: Token with the required issues and pull request permissions for API operations.
