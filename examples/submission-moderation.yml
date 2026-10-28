@@ -22,3 +22,5 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           allowlist: '[]'
           # Omit response to use the packaged human-voice message.
+          # Set mode: observe to apply only the publicly visible mellon: review label.
+          # Omit mode to keep the default enforce behavior.

@@ -1,8 +1,14 @@
 # Submission moderation
 
-Mellon processes only supported issue and `pull_request_target` opening events. It prepares the opening title and body, then lazily runs the bundled local classifier for eligible, nonempty submissions. A score below the fixed `0.80` cutoff leaves GitHub unchanged. A score at or above the cutoff triggers a current-state check, a moderation response, a second state check, and closure through the issue- or pull-request-specific API endpoint.
+Mellon processes only supported issue and `pull_request_target` opening events. It prepares the opening title and body, then lazily runs the bundled local classifier for eligible, nonempty submissions. A score below the fixed `0.80` cutoff leaves GitHub unchanged. The default `enforce` mode preserves the existing behavior: scores at or above cutoff trigger current-state checks, a moderation response, and closure. Explicit `observe` mode instead checks that the item is still open and unchanged, ensures the fixed `mellon: review` repository label exists, checks the item again, and applies only that label.
 
 The default response welcomes AI-assisted code while asking contributors to describe the work in their own words. The automated result can be wrong; it is not proof of authorship, code quality, or understanding. The model probabilities are not validated for issue or pull-request moderation and `0.80` is a repository policy cutoff, not a calibrated authorship probability.
+
+## Observation mode
+
+Observation mode never posts comments, closes items, or changes other labels. GitHub applies labels through the issues-labels endpoint for both issues and pull requests. Mellon creates `mellon: review` on demand if it is missing, and reuses an existing label without changing its name or color. The label is publicly visible to repository users. An `issues: write` token is required for issues and PRs because GitHub's labels API applies to both through the issue-label endpoint; `pull-requests: write` remains part of the minimal configured permission set. A label creation race is reconciled before use; unrelated failures stop safely.
+
+The score is uncalibrated for issue and pull-request moderation and is not an authorship probability. Observation mode affects only newly opened supported events; switching modes does not backfill or modify past items. Allowlisted, empty, below-cutoff, stale, and unsupported events retain their existing skip semantics.
 
 ## Writes and reruns
 
@@ -12,4 +18,4 @@ If comment creation fails ambiguously, Mellon lists comments once to reconcile t
 
 Serialized workflow runs reduce ordinary duplicate writes, but independent concurrent executions and human edits cannot be made atomic with GitHub's separate reads and writes. Exactly-once behavior is not guaranteed. A manual reopen is not recorded as an exemption: rerunning an old opening event for an unchanged item can close it again. Mellon does not automatically process edits, reopenings, or later discussion.
 
-The API client always addresses `https://api.github.com` using trusted runner repository and item identity. It bounds request duration and response sizes, rejects redirects, validates same-resource pagination, and reads all comment pages before mutations. The Action requires a narrowly permissioned token and its packaged dependencies share the same process and credential trust boundary; they are not sandboxed from that token.
+The API client always addresses `https://api.github.com` using trusted runner repository and item identity. It bounds request duration and response sizes, rejects redirects, validates same-resource pagination, and uses bounded retries and reconciliation for the fixed observation label. The Action requires a narrowly permissioned token and its packaged dependencies share the same process and credential trust boundary; they are not sandboxed from that token.

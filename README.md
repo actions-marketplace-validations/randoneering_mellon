@@ -1,6 +1,6 @@
 # Mellon
 
-Mellon is a JavaScript GitHub Action for a repository's human-voice contribution policy. AI-assisted code is welcome; contributors should describe their work in their own words. The Action reviews only opening issue and pull-request titles and bodies, excludes fenced code and blockquotes, and applies a fixed inclusive `0.80` robot-score cutoff. Scores are fallible and have not been validated for issue or pull-request moderation.
+Mellon is a JavaScript GitHub Action for a repository's human-voice contribution policy. AI-assisted code is welcome; contributors should describe their work in their own words. The Action reviews only opening issue and pull-request titles and bodies, excludes fenced code and blockquotes, and applies a fixed inclusive `0.80` robot-score cutoff. Default `enforce` mode comments and closes as before; explicit `observe` mode applies only the publicly visible `mellon: review` label. Scores are fallible and have not been validated for issue or pull-request moderation.
 
 The Action uses Node 24 on maintained Linux runners and rejects UID 0 before inference or GitHub operations. It is the supported runtime. Existing Go files remain historical and are not an Action runtime, CLI, or supported installation path.
 
@@ -10,7 +10,7 @@ The Action uses Node 24 on maintained Linux runners and rejects UID 0 before inf
 2. Publish and review an Action release, then replace the clearly unusable revision placeholder in [`examples/submission-moderation.yml`](examples/submission-moderation.yml) with that release's actual immutable 40-character commit SHA.
 3. Copy the workflow into the consuming repository, set its owner/name and required permissions, and do not add a consumer checkout or run contributor-controlled code.
 
-The workflow supports `issues.opened` and `pull_request_target.opened`, with only `issues: write` and `pull-requests: write`. Set `allowlist` to a JSON array of exact account logins. Set `response` to literal text or omit it for the packaged human-voice message. The cutoff is not configurable. See [all Action inputs and defaults](docs/configuration.md).
+The workflow supports `issues.opened` and `pull_request_target.opened`, with only `issues: write` and `pull-requests: write`. Set `allowlist` to a JSON array of exact account logins. Set `response` to literal text or omit it for the packaged human-voice message. Set `mode: observe` to enable label-only observation; the default is `enforce`. Observe creates the label on demand and does not modify past items. The cutoff is not configurable. See [all Action inputs and defaults](docs/configuration.md).
 
 ## Build and test
 
@@ -34,4 +34,4 @@ The scorer, parser, and Action share one Node process and token trust boundary. 
 
 Concurrent runs serialize per repository and item. This is not an exactly-once guarantee. A response posted before a later failure can remain. Manual reopening is not a persisted exemption, and rerunning an unchanged opening event can close the item again. Roll back by changing the workflow to a previously reviewed immutable Action revision or disabling the workflow. Rollback does not delete comments or automatically reopen items.
 
-Historical dataset evaluation, calibration, and training remain separate follow-up work.
+The private source Action repository must be accessible to the target repository's workflow runner when referenced by owner/name and SHA. Historical dataset evaluation, calibration, and training remain separate follow-up work.

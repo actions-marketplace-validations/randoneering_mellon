@@ -2,6 +2,7 @@ import { createEligibleContinuation } from './inputs.mjs';
 import { prepareSubmission } from './prepare.mjs';
 
 export const CUTOFF = 0.8;
+const REVIEW_LABEL = 'mellon: review';
 export const DEFAULT_RESPONSE = "AI-assisted code is welcome. Please describe your work in your own words. This automated review can make mistakes. If this submission does not meet the repository's contribution policy, maintainers may close it. Contact a maintainer if you need help.";
 const PROTOCOL = 'mellon-submission-moderation-v1';
 
@@ -52,6 +53,25 @@ export async function moderate({ getContext, getInputs, api, score, prepare = pr
         detector_revision: classified.detector_revision, model_sha256: classified.model_sha256,
         input_sha256: classified.input_sha256, partial: false,
       };
+      if (policy.mode === 'observe') {
+        let matches;
+        try { matches = await currentMatches(api, context); }
+        catch { return safeFailure('Current item state could not be checked safely.'); }
+        if (!matches) return { outcome: 'skipped', reason: 'stale_before_label', cutoff: CUTOFF,
+          score: classified.robot_score, partial: false };
+        try {
+          const label = await api.getReviewLabel(context);
+          if (!label.exists) await api.createReviewLabel(context);
+          if (!await currentMatches(api, context)) return { outcome: 'skipped', reason: 'stale_before_label',
+            cutoff: CUTOFF, score: classified.robot_score, partial: false };
+          await api.addLabel(context);
+        } catch {
+          return safeFailure('Observation label could not be applied safely.');
+        }
+        return { outcome: 'flagged', cutoff: CUTOFF, score: classified.robot_score,
+          detector_revision: classified.detector_revision, model_sha256: classified.model_sha256,
+          input_sha256: classified.input_sha256, label: REVIEW_LABEL, partial: false };
+      }
       const marker = markerFor(context, classified);
       let comments = await api.listComments(context);
       let existing = comments.find((comment) => genuine(comment, marker));

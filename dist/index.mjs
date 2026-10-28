@@ -7533,6 +7533,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 var API_ROOT = "https://api.github.com";
 var MAX_BODY_BYTES = 1024 * 1024;
 var MAX_PAGES = 100;
+var REVIEW_LABEL = "mellon: review";
+var LABEL_RETRY_LIMIT = 3;
 function safeError() {
   return new Error("GitHub API request failed safely.");
 }
@@ -7602,7 +7604,19 @@ function createGitHubClient({ token, fetchImpl = fetch, timeoutMs = 3e4, signal,
   if (typeof token !== "string" || !token || typeof fetchImpl !== "function" || !Number.isSafeInteger(timeoutMs) || timeoutMs <= 0 || !Number.isSafeInteger(maxBodyBytes) || maxBodyBytes <= 0) {
     throw new TypeError("A token, fetch implementation, and positive limits are required.");
   }
+  function requestError(status) {
+    const error = safeError();
+    Object.defineProperty(error, "status", { value: status });
+    return error;
+  }
   async function request(url, { method = "GET", body } = {}) {
+    let parsedURL;
+    try {
+      parsedURL = new URL(url);
+    } catch {
+      throw safeError();
+    }
+    if (parsedURL.origin !== API_ROOT || parsedURL.username || parsedURL.password) throw safeError();
     const controller = new AbortController();
     const onAbort = () => controller.abort(signal?.reason);
     signal?.addEventListener("abort", onAbort, { once: true });
@@ -7616,16 +7630,65 @@ function createGitHubClient({ token, fetchImpl = fetch, timeoutMs = 3e4, signal,
         headers: { accept: "application/vnd.github+json", authorization: `Bearer ${token}`, "x-github-api-version": "2022-11-28", ...body === void 0 ? {} : { "content-type": "application/json" } },
         ...body === void 0 ? {} : { body: JSON.stringify(body) }
       });
-      if (response.status >= 300 && response.status < 400 || !response.ok) throw safeError();
+      if (response.status >= 300 && response.status < 400 || !response.ok) {
+        throw requestError(response.status);
+      }
       return { value: await readBounded(response, maxBodyBytes), link: response.headers.get("link") };
-    } catch {
+    } catch (error) {
+      if (Number.isInteger(error?.status)) throw error;
       throw safeError();
     } finally {
       clearTimeout(timer);
       signal?.removeEventListener("abort", onAbort);
     }
   }
+  async function retryLabelRequest(url, options, validate) {
+    for (let attempt = 0; attempt < LABEL_RETRY_LIMIT; attempt++) {
+      try {
+        const result = await request(url, options);
+        return validate(result.value);
+      } catch (error) {
+        if (error?.status === 422 || attempt + 1 === LABEL_RETRY_LIMIT || error?.status && error.status < 500) throw error?.status === 422 ? error : safeError();
+        await new Promise((resolve) => setTimeout(resolve, 100 * (attempt + 1)));
+      }
+    }
+    throw safeError();
+  }
   return {
+    async getReviewLabel({ repository }) {
+      if (typeof repository !== "string" || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) throw safeError();
+      const url = `${API_ROOT}/repos/${repository}/labels/${encodeURIComponent(REVIEW_LABEL)}`;
+      try {
+        const { value } = await request(url);
+        if (!value || value.name !== REVIEW_LABEL) throw safeError();
+        return { exists: true };
+      } catch (error) {
+        if (error?.status === 404) return { exists: false };
+        throw safeError();
+      }
+    },
+    async createReviewLabel({ repository }) {
+      if (typeof repository !== "string" || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) throw safeError();
+      const url = `${API_ROOT}/repos/${repository}/labels`;
+      const body = { name: REVIEW_LABEL, color: "ededed", description: "Flagged by Mellon observation mode." };
+      try {
+        await retryLabelRequest(url, { method: "POST", body }, (value) => {
+          if (!value || value.name !== REVIEW_LABEL) throw safeError();
+          return value;
+        });
+      } catch (error) {
+        if (error?.status !== 422) throw safeError();
+        const { value } = await request(`${API_ROOT}/repos/${repository}/labels/${encodeURIComponent(REVIEW_LABEL)}`);
+        if (!value || value.name !== REVIEW_LABEL) throw safeError();
+      }
+    },
+    async addLabel({ repository, number }) {
+      const url = resource(repository, number, "/labels");
+      await retryLabelRequest(url, { method: "POST", body: { labels: [REVIEW_LABEL] } }, (value) => {
+        if (!Array.isArray(value) || !value.some((label) => label?.name === REVIEW_LABEL)) throw safeError();
+        return value;
+      });
+    },
     async getItem({ repository, number, kind }) {
       if (kind !== "issue" && kind !== "pull_request") throw safeError();
       const issueURL = resource(repository, number);
@@ -7727,9 +7790,10 @@ function parsePolicy(inputs = {}) {
   }
   if (!Array.isArray(allowlist) || allowlist.some((account) => typeof account !== "string" || !ACCOUNT_PATTERN.test(account))) throw invalidInput();
   const response = inputs.response === void 0 ? DEFAULT_RESPONSE : inputs.response;
-  if (typeof response !== "string" || !validText(response) || Buffer.byteLength(response, "utf8") > RESPONSE_LIMIT) throw invalidInput();
-  if (Object.keys(inputs).some((key) => !["allowlist", "response"].includes(key))) throw invalidInput();
-  return { allowlist, response, cutoff: 0.8 };
+  const mode = inputs.mode === void 0 ? "enforce" : inputs.mode;
+  if (typeof response !== "string" || !validText(response) || Buffer.byteLength(response, "utf8") > RESPONSE_LIMIT || mode !== "enforce" && mode !== "observe") throw invalidInput();
+  if (Object.keys(inputs).some((key) => !["allowlist", "response", "mode"].includes(key))) throw invalidInput();
+  return { allowlist, response, cutoff: 0.8, mode };
 }
 function createEligibleContinuation({ getContext, getInputs }) {
   return async function run(continueEligible) {
@@ -12866,6 +12930,7 @@ function prepareSubmission(title, body = null) {
 
 // src/moderation.mjs
 var CUTOFF = 0.8;
+var REVIEW_LABEL2 = "mellon: review";
 var PROTOCOL = "mellon-submission-moderation-v1";
 function safeFailure(message, state = {}) {
   const { commentPosted, uncertain, ...metadata } = state;
@@ -12912,6 +12977,45 @@ async function moderate({ getContext, getInputs, api, score, prepare = prepareSu
         input_sha256: classified.input_sha256,
         partial: false
       };
+      if (policy.mode === "observe") {
+        let matches;
+        try {
+          matches = await currentMatches(api, context);
+        } catch {
+          return safeFailure("Current item state could not be checked safely.");
+        }
+        if (!matches) return {
+          outcome: "skipped",
+          reason: "stale_before_label",
+          cutoff: CUTOFF,
+          score: classified.robot_score,
+          partial: false
+        };
+        try {
+          const label = await api.getReviewLabel(context);
+          if (!label.exists) await api.createReviewLabel(context);
+          if (!await currentMatches(api, context)) return {
+            outcome: "skipped",
+            reason: "stale_before_label",
+            cutoff: CUTOFF,
+            score: classified.robot_score,
+            partial: false
+          };
+          await api.addLabel(context);
+        } catch {
+          return safeFailure("Observation label could not be applied safely.");
+        }
+        return {
+          outcome: "flagged",
+          cutoff: CUTOFF,
+          score: classified.robot_score,
+          detector_revision: classified.detector_revision,
+          model_sha256: classified.model_sha256,
+          input_sha256: classified.input_sha256,
+          label: REVIEW_LABEL2,
+          partial: false
+        };
+      }
       const marker = markerFor(context, classified);
       let comments = await api.listComments(context);
       let existing = comments.find((comment) => genuine(comment, marker));
@@ -12982,7 +13086,7 @@ ${marker}`;
 
 // src/action.mjs
 var EVENT_LIMIT2 = 4 * 1024 * 1024;
-var OUTCOMES = /* @__PURE__ */ new Set(["skipped", "empty_input", "below_cutoff", "closed", "error"]);
+var OUTCOMES = /* @__PURE__ */ new Set(["skipped", "empty_input", "below_cutoff", "closed", "flagged", "error"]);
 var ACTION_DIRECTORY = fileURLToPath(new URL("./", import.meta.url));
 var ASSET_DIGESTS = /* @__PURE__ */ new Map([
   ["preprocess.mjs", "14c86ef36a82cf603ef8120e5c4cc96a30ec0427650ca42ff20d3eb1217db984"],
@@ -13143,9 +13247,11 @@ async function runAction({
       const getInputs = () => {
         const allowlist = typeof getInput === "function" ? getInput("allowlist") : "";
         const response = typeof getInput === "function" ? getInput("response") : "";
+        const mode = typeof getInput === "function" ? getInput("mode") : "";
         return {
           ...allowlist === "" ? {} : { allowlist },
-          ...response === "" ? {} : { response }
+          ...response === "" ? {} : { response },
+          ...mode === "" ? {} : { mode }
         };
       };
       let api;
@@ -13160,7 +13266,10 @@ async function runAction({
         listComments: (...args) => lazyApi().listComments(...args),
         getItem: (...args) => lazyApi().getItem(...args),
         createComment: (...args) => lazyApi().createComment(...args),
-        closeItem: (...args) => lazyApi().closeItem(...args)
+        closeItem: (...args) => lazyApi().closeItem(...args),
+        getReviewLabel: (...args) => lazyApi().getReviewLabel(...args),
+        createReviewLabel: (...args) => lazyApi().createReviewLabel(...args),
+        addLabel: (...args) => lazyApi().addLabel(...args)
       };
       result = await moderate({
         getContext,
@@ -13193,6 +13302,7 @@ async function writeSummary(filename, result) {
     empty_input: "No prose to classify",
     below_cutoff: "Below moderation cutoff",
     closed: "Closed after confirmed response",
+    flagged: "Flagged for review",
     error: "Operational error"
   };
   const score = result.robotScore === void 0 ? "" : `
@@ -13206,13 +13316,14 @@ Comment ID: ${result.commentId}`}${result.provenance ? `
 Detector revision: ${result.provenance.detectorRevision}
 Model SHA-256: ${result.provenance.modelSha256}
 Input SHA-256: ${result.provenance.inputSha256}` : ""}` : "";
+  const labelNote = result.outcome === "flagged" ? "\n\nLabel: mellon: review" : "";
   const uncertainty = result.outcome === "error" && result.uncertainty ? "\n\nResponse confirmation: uncertain" : "";
   try {
     const handle = await open(filename, "a");
     try {
       await handle.writeFile(`## Mellon moderation
 
-${labels[result.outcome]}${score}${partial}${uncertainty}
+${labels[result.outcome]}${score}${labelNote}${partial}${uncertainty}
 `, "utf8");
     } finally {
       await handle.close();

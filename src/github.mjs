@@ -1,6 +1,8 @@
 const API_ROOT = 'https://api.github.com';
 const MAX_BODY_BYTES = 1024 * 1024;
 const MAX_PAGES = 100;
+const REVIEW_LABEL = 'mellon: review';
+const LABEL_RETRY_LIMIT = 3;
 
 function safeError() {
   return new Error('GitHub API request failed safely.');
@@ -83,7 +85,15 @@ export function createGitHubClient({ token, fetchImpl = fetch, timeoutMs = 30_00
       !Number.isSafeInteger(timeoutMs) || timeoutMs <= 0 || !Number.isSafeInteger(maxBodyBytes) || maxBodyBytes <= 0) {
     throw new TypeError('A token, fetch implementation, and positive limits are required.');
   }
+  function requestError(status) {
+    const error = safeError();
+    Object.defineProperty(error, 'status', { value: status });
+    return error;
+  }
   async function request(url, { method = 'GET', body } = {}) {
+    let parsedURL;
+    try { parsedURL = new URL(url); } catch { throw safeError(); }
+    if (parsedURL.origin !== API_ROOT || parsedURL.username || parsedURL.password) throw safeError();
     const controller = new AbortController();
     const onAbort = () => controller.abort(signal?.reason);
     signal?.addEventListener('abort', onAbort, { once: true });
@@ -95,16 +105,66 @@ export function createGitHubClient({ token, fetchImpl = fetch, timeoutMs = 30_00
         headers: { accept: 'application/vnd.github+json', authorization: `Bearer ${token}`, 'x-github-api-version': '2022-11-28', ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       });
-      if (response.status >= 300 && response.status < 400 || !response.ok) throw safeError();
+      if (response.status >= 300 && response.status < 400 || !response.ok) {
+        throw requestError(response.status);
+      }
       return { value: await readBounded(response, maxBodyBytes), link: response.headers.get('link') };
-    } catch {
+    } catch (error) {
+      if (Number.isInteger(error?.status)) throw error;
       throw safeError();
     } finally {
       clearTimeout(timer);
       signal?.removeEventListener('abort', onAbort);
     }
   }
+  async function retryLabelRequest(url, options, validate) {
+    for (let attempt = 0; attempt < LABEL_RETRY_LIMIT; attempt++) {
+      try {
+        const result = await request(url, options);
+        return validate(result.value);
+      } catch (error) {
+        if (error?.status === 422 || attempt + 1 === LABEL_RETRY_LIMIT || error?.status && error.status < 500) throw error?.status === 422 ? error : safeError();
+        await new Promise(resolve => setTimeout(resolve, 100 * (attempt + 1)));
+      }
+    }
+    throw safeError();
+  }
   return {
+    async getReviewLabel({ repository }) {
+      if (typeof repository !== 'string' || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) throw safeError();
+      const url = `${API_ROOT}/repos/${repository}/labels/${encodeURIComponent(REVIEW_LABEL)}`;
+      try {
+        const { value } = await request(url);
+        if (!value || value.name !== REVIEW_LABEL) throw safeError();
+        return { exists: true };
+      } catch (error) {
+        if (error?.status === 404) return { exists: false };
+        throw safeError();
+      }
+    },
+    async createReviewLabel({ repository }) {
+      if (typeof repository !== 'string' || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) throw safeError();
+      const url = `${API_ROOT}/repos/${repository}/labels`;
+      const body = { name: REVIEW_LABEL, color: 'ededed', description: 'Flagged by Mellon observation mode.' };
+      try {
+        await retryLabelRequest(url, { method: 'POST', body }, value => {
+          if (!value || value.name !== REVIEW_LABEL) throw safeError();
+          return value;
+        });
+      } catch (error) {
+        if (error?.status !== 422) throw safeError();
+        // A concurrent creation can make GitHub return 422; only accept a confirmed label.
+        const { value } = await request(`${API_ROOT}/repos/${repository}/labels/${encodeURIComponent(REVIEW_LABEL)}`);
+        if (!value || value.name !== REVIEW_LABEL) throw safeError();
+      }
+    },
+    async addLabel({ repository, number }) {
+      const url = resource(repository, number, '/labels');
+      await retryLabelRequest(url, { method: 'POST', body: { labels: [REVIEW_LABEL] } }, value => {
+        if (!Array.isArray(value) || !value.some(label => label?.name === REVIEW_LABEL)) throw safeError();
+        return value;
+      });
+    },
     async getItem({ repository, number, kind }) {
       if (kind !== 'issue' && kind !== 'pull_request') throw safeError();
       const issueURL = resource(repository, number);
