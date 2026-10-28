@@ -1,23 +1,80 @@
 # Mellon
 
-Mellon is a JavaScript GitHub Action for a repository's human-voice contribution policy. AI-assisted code is welcome; contributors should describe their work in their own words. The Action reviews only opening issue and pull-request titles and bodies, excludes fenced code and blockquotes, and applies a fixed inclusive `0.80` robot-score cutoff. Default `enforce` mode comments and closes as before; explicit `observe` mode applies only the publicly visible `mellon: review` label. Scores are fallible and have not been validated for issue or pull-request moderation.
+Mellon is a GitHub Action that reviews new issue and pull request descriptions.
+AI-assisted code is welcome, but contributors should describe their work in their own words.
+Mellon scores the title and description after removing fenced code and blockquotes.
 
-The Action uses Node 24 on maintained Linux runners and rejects UID 0 before inference or GitHub operations. It is the supported runtime. Existing Go files remain historical and are not an Action runtime, CLI, or supported installation path.
+The score is a fallible signal, not proof of AI authorship.
+The model was trained on code comments and has not been calibrated for issues or pull requests.
+The fixed cutoff is **0.80**, including scores equal to 0.80.
 
-## Setup
+## Set up the Action
 
-1. Review [workflow configuration](docs/configuration.md), [classification limits](docs/classification.md), [moderation and reruns](docs/moderation.md), and [dependency trust](docs/dependencies.md).
-2. Publish and review an Action release, then replace the clearly unusable revision placeholder in [`examples/submission-moderation.yml`](examples/submission-moderation.yml) with that release's actual immutable 40-character commit SHA.
-3. Copy the workflow into the consuming repository, set its owner/name and required permissions, and do not add a consumer checkout or run contributor-controlled code.
+1. Make sure your repository can access Mellon and allows GitHub Actions to run.
+2. Add the workflow below as `.github/workflows/mellon.yml` in your repository.
+3. Replace `REPLACE_WITH_REVIEWED_40_CHARACTER_COMMIT_SHA` with a reviewed Mellon commit SHA.
+4. Start with `mode: observe` and review the results before enabling enforcement.
 
-The workflow supports `issues.opened` and `pull_request_target.opened`, with only `issues: write` and `pull-requests: write`. Set `allowlist` to a JSON array of exact account logins. Set `response` to literal text or omit it for the packaged human-voice message. Set `mode: observe` to enable label-only observation; the default is `enforce`. Observe creates the label on demand and does not modify past items. The cutoff is not configurable. See [all Action inputs and defaults](docs/configuration.md).
+```yaml
+name: Mellon
+on:
+  issues:
+    types: [opened]
+  pull_request_target:
+    types: [opened]
+permissions:
+  issues: write
+  pull-requests: write
+concurrency:
+  group: mellon-${{ github.repository }}-${{ github.event.issue.number || github.event.pull_request.number }}
+  cancel-in-progress: false
+jobs:
+  moderate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Review submission
+        uses: randoneering/mellon@REPLACE_WITH_REVIEWED_40_CHARACTER_COMMIT_SHA
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          mode: observe
+          allowlist: '["dependabot[bot]"]'
+```
+
+Replace the example allowlist with the exact GitHub logins you want to skip, or omit it to review every author.
+For forked pull requests, `pull_request_target` runs the trusted base-repository workflow.
+Do not check out or run pull request code in this job.
+Mellon runs on Node 24 and requires a non-root runner.
+
+### Modes and inputs
+
+| Input | Default | What it does |
+| --- | --- | --- |
+| `token` | None | GitHub token with issue and pull request write permissions. |
+| `mode` | `enforce` | `observe` labels flagged submissions; `enforce` comments and closes them. |
+| `allowlist` | `[]` | JSON array of exact account logins to skip. |
+| `response` | Packaged message | Literal comment text used in enforcement mode. |
+
+Observation mode creates `mellon: review` if needed and applies it to submissions at or above the cutoff.
+The label is visible to anyone who can see the issue or PR.
+Observation mode does not comment or close submissions.
+Existing labels keep their color and description.
+
+Enforcement mode posts the response and then closes a flagged submission.
+Mellon appends the score and detector details to the response.
+An empty `response` uses the packaged message.
+The cutoff is fixed and cannot be configured through an Action input.
+
+Mellon only handles opening events; it does not scan existing submissions.
+See [workflow configuration](docs/configuration.md) for input limits and [moderation and reruns](docs/moderation.md) for failure and retry behavior.
 
 ## Build and test
 
-Use Node 24 and the checked-in lockfile:
+Use Node 24 and the checked-in lockfiles:
 
 ```sh
 npm ci --ignore-scripts
+npm ci --prefix detector --ignore-scripts
 npm run verify:assets
 npm run test:build
 npm test
@@ -26,12 +83,16 @@ npm run build
 npm run validate:release
 ```
 
-The build produces `dist/index.mjs`, `dist/scorer.mjs`, detector assets and provenance, build metadata, and third-party notices. Include generated `dist/` files in a release commit; consumers do not install npm packages or fetch models at runtime. Run the tests and release validator before publishing. The local YAML validator is used because `actionlint` is not installed.
+The build produces the bundled Action, scorer, detector assets, metadata, and third-party notices in `dist/`.
+Include those files in a release commit; the Action does not install packages or download models at runtime.
 
 ## Security and operations
 
-The scorer, parser, and Action share one Node process and token trust boundary. Dependencies are not sandboxed from credentials. Do not run this Action with a token broader than required, and review source, locked npm dependencies, and release artifacts before upgrading. A root runner is rejected; do not bootstrap with sudo or change runtime ownership.
+The Action and its dependencies share a process and can access its token.
+Use only the permissions the workflow needs, and review the source and release files before updating the pinned SHA.
+See [dependency trust](docs/dependencies.md) and [classification limits](docs/classification.md) for details.
 
-Concurrent runs serialize per repository and item. This is not an exactly-once guarantee. A response posted before a later failure can remain. Manual reopening is not a persisted exemption, and rerunning an unchanged opening event can close the item again. Roll back by changing the workflow to a previously reviewed immutable Action revision or disabling the workflow. Rollback does not delete comments or automatically reopen items.
-
-The private source Action repository must be accessible to the target repository's workflow runner when referenced by owner/name and SHA. Historical dataset evaluation, calibration, and training remain separate follow-up work.
+Concurrent runs serialize per repository and item, but they do not guarantee exactly-once execution.
+A comment can remain if a later closure fails.
+Reopening an item does not exempt it from a rerun of its original event.
+To roll back, pin a previously reviewed commit or disable the workflow; existing comments and closures remain.
