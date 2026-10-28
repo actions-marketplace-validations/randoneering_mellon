@@ -1,18 +1,18 @@
 <p align="center">
-  <img src="media/mellon.png" alt="Mellon logo" width="240">
+  <img src="media/mellon.png" alt="mellon logo" width="240">
 </p>
 
-# Mellon
+<h1 align="center">mellon</h1>
 
 > “Speak, friend, and enter.”
 >
 > J. R. R. Tolkien, *The Fellowship of the Ring*
 
-Mellon means “friend” in Sindarin.
+mellon means “friend” in Sindarin.
 
-Mellon is a GitHub Action that reviews new issue and pull request descriptions.
+mellon is a GitHub Action that reviews new issue and pull request descriptions.
 AI-assisted code is welcome, but contributors should describe their work in their own words.
-Mellon scores the title and description after removing fenced code and blockquotes.
+mellon scores the title and description after removing fenced code and blockquotes.
 
 The score is a fallible signal, not proof of AI authorship.
 The model was trained on code comments and has not been calibrated for issues or pull requests.
@@ -20,13 +20,13 @@ The fixed cutoff is **0.80**, including scores equal to 0.80.
 
 ## Set up the Action
 
-1. Make sure your repository can access Mellon and allows GitHub Actions to run.
+1. Make sure your repository can access mellon and allows GitHub Actions to run.
 2. Add the workflow below as `.github/workflows/mellon.yml` in your repository.
-3. Replace `REPLACE_WITH_REVIEWED_40_CHARACTER_COMMIT_SHA` with a reviewed Mellon commit SHA.
+3. Replace `REPLACE_WITH_REVIEWED_40_CHARACTER_COMMIT_SHA` with a reviewed mellon commit SHA.
 4. Start with `mode: observe` and review the results before enabling enforcement.
 
 ```yaml
-name: Mellon
+name: mellon
 on:
   issues:
     types: [opened]
@@ -54,7 +54,7 @@ jobs:
 Replace the example allowlist with the exact GitHub logins you want to skip, or omit it to review every author.
 For forked pull requests, `pull_request_target` runs the trusted base-repository workflow.
 Do not check out or run pull request code in this job.
-Mellon runs on Node 24 and requires a non-root runner.
+mellon runs on Node 24 and requires a non-root runner.
 
 ### Modes and inputs
 
@@ -71,11 +71,11 @@ Observation mode does not comment or close submissions.
 Existing labels keep their color and description.
 
 Enforcement mode posts the response and then closes a flagged submission.
-Mellon appends the score and detector details to the response.
+mellon appends the score and detector details to the response.
 An empty `response` uses the packaged message.
 The cutoff is fixed and cannot be configured through an Action input.
 
-Mellon only handles opening events; it does not scan existing submissions.
+mellon only handles opening events; it does not scan existing submissions.
 See [workflow configuration](docs/configuration.md) for input limits and [moderation and reruns](docs/moderation.md) for failure and retry behavior.
 
 ## Build and test
