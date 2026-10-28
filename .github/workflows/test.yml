@@ -20,6 +20,9 @@ jobs:
           cache: npm
       - name: Install locked dependencies without scripts
         run: npm ci --ignore-scripts
+      - name: Install locked detector dependencies without scripts
+        working-directory: detector
+        run: npm ci --ignore-scripts
       - name: Verify assets
         run: npm run verify:assets
       - name: Test build safety
