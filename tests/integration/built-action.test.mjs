@@ -161,9 +161,22 @@ test('built issue Action scores real classifier text and treats injection as dat
   assert.equal(isolatedFiles.some(name => /\.go$|Dockerfile/i.test(name)), false);
 });
 
-test('built issue Action uses packaged score and rejects an exact matching contributor spoof marker', async t => {
+test('built Action leaves a score between old and new cutoffs unchanged', async t => {
   const title = 'Check the math';
   const body = 'This change introduces a structured approach to configuration management and improves maintainability.';
+  const scorer = await import('../../dist/scorer.mjs');
+  const scored = await scorer.scoreRequest({ protocol_version: 1, text: `${title}\n\n${body}` }, path.join(artifactDirectory, 'detector'));
+  assert.ok(scored.robot_score >= 0.6 && scored.robot_score < 0.8);
+  const run = await runBuilt(t, { eventName: 'issues', fixture: eventFor('issues', { item: 43, title, body }), pages: [[]] });
+  assert.equal(run.result.status, 0, run.result.stderr);
+  assert.match(run.output, /^outcome=below_cutoff\nrobot-score=0\.\d+\n$/);
+  assert.deepEqual(run.requests, []);
+  assertNoSensitiveOutput(run, [token, body]);
+});
+
+test('built issue Action uses packaged score and rejects an exact matching contributor spoof marker', async t => {
+  const title = 'Check the math';
+  const body = 'This change introduces a structured approach to configuration management and improves maintainability. It provides a comprehensive solution that enhances reliability, streamlines workflows, and ensures consistent behavior across the application.';
   const score = await import('../../dist/scorer.mjs');
   const sourceResult = await score.scoreRequest({ protocol_version: 1, text: `${title}\n\n${body}` }, path.join(artifactDirectory, 'detector'));
   const run = await runBuilt(t, { eventName: 'issues', fixture: eventFor('issues', { item: 32, title, body }), pages: [[{
@@ -185,10 +198,10 @@ test('built issue Action uses packaged score and rejects an exact matching contr
 
 test('built pull request Action skips a merged PR before posting', async t => {
   const title = 'Check the math';
-  const body = 'This change introduces a structured approach to configuration management and improves maintainability.';
+  const body = 'This change introduces a structured approach to configuration management and improves maintainability. It provides a comprehensive solution that enhances reliability, streamlines workflows, and ensures consistent behavior across the application.';
   const scorer = await import('../../dist/scorer.mjs');
   const scored = await scorer.scoreRequest({ protocol_version: 1, text: `${title}\n\n${body}` }, path.join(artifactDirectory, 'detector'));
-  assert.ok(scored.robot_score >= 0.6);
+  assert.ok(scored.robot_score >= 0.8);
   const run = await runBuilt(t, { eventName: 'pull_request_target', fixture: eventFor('pull_request_target', { item: 40, title, body }), pages: [[]], merged: true });
   assert.equal(run.result.status, 0, run.result.stderr);
   assert.match(run.output, /^outcome=skipped\nrobot-score=0\.\d+\n$/);
@@ -206,7 +219,7 @@ test('built Action classifies prepared empty input without GitHub requests', asy
 
 test('built pull request Action reports confirmed response when closure fails', async t => {
   const title = 'Check the math';
-  const body = 'This change introduces a structured approach to configuration management and improves maintainability.';
+  const body = 'This change introduces a structured approach to configuration management and improves maintainability. It provides a comprehensive solution that enhances reliability, streamlines workflows, and ensures consistent behavior across the application.';
   const run = await runBuilt(t, { eventName: 'pull_request_target', fixture: eventFor('pull_request_target', { item: 42, title, body }), pages: [[]], failClose: true });
   assert.equal(run.result.status, 1);
   assert.match(run.output, /^outcome=error\nrobot-score=0\.\d+\n$/);
@@ -233,7 +246,7 @@ test('built pull request Action scores nullable body and uses pull request API e
 
 test('built Action skips an issue that was already closed before responding', async t => {
   const title = 'Check the math';
-  const body = 'This change introduces a structured approach to configuration management and improves maintainability.';
+  const body = 'This change introduces a structured approach to configuration management and improves maintainability. It provides a comprehensive solution that enhances reliability, streamlines workflows, and ensures consistent behavior across the application.';
   const run = await runBuilt(t, { eventName: 'issues', fixture: eventFor('issues', { item: 36, title, body }), pages: [[]], initialState: 'closed' });
   assert.equal(run.result.status, 0);
   assert.equal(run.output.startsWith('outcome=skipped\n'), true);
@@ -243,7 +256,7 @@ test('built Action skips an issue that was already closed before responding', as
 
 test('built Action skips when current submission text changes after response', async t => {
   const title = 'Check the math';
-  const body = 'This change introduces a structured approach to configuration management and improves maintainability.';
+  const body = 'This change introduces a structured approach to configuration management and improves maintainability. It provides a comprehensive solution that enhances reliability, streamlines workflows, and ensures consistent behavior across the application.';
   const run = await runBuilt(t, { eventName: 'issues', fixture: eventFor('issues', { item: 37, title, body }), pages: [[]], responseMode: 'state_changed' });
   assert.equal(run.result.status, 0);
   assert.equal(run.output.startsWith('outcome=skipped\n'), true);
@@ -254,7 +267,7 @@ test('built Action skips when current submission text changes after response', a
 
 test('built Action reuses a verified matching bot comment without reposting', async t => {
   const title = 'Check the math';
-  const body = 'This change introduces a structured approach to configuration management and improves maintainability.';
+  const body = 'This change introduces a structured approach to configuration management and improves maintainability. It provides a comprehensive solution that enhances reliability, streamlines workflows, and ensures consistent behavior across the application.';
   const score = await import('../../dist/scorer.mjs');
   const sourceResult = await score.scoreRequest({ protocol_version: 1, text: `${title}\n\n${body}` }, path.join(artifactDirectory, 'detector'));
   const existing = { id: 27, body: marker(38, sourceResult.input_sha256), user: { login: 'github-actions[bot]', type: 'Bot' } };
@@ -269,7 +282,7 @@ test('built Action reuses a verified matching bot comment without reposting', as
 
 test('built Action fails safely when uncertain POST reconciliation fails', async t => {
   const title = 'Check the math';
-  const body = 'This change introduces a structured approach to configuration management and improves maintainability.';
+  const body = 'This change introduces a structured approach to configuration management and improves maintainability. It provides a comprehensive solution that enhances reliability, streamlines workflows, and ensures consistent behavior across the application.';
   const run = await runBuilt(t, { eventName: 'issues', fixture: eventFor('issues', { item: 39, title, body }),
     pages: [[]], responseMode: 'reconcile_failure' });
   assert.equal(run.result.status, 1);
@@ -281,7 +294,7 @@ test('built Action fails safely when uncertain POST reconciliation fails', async
 
 test('built pull request Action reports a partial safe error on API failure', async t => {
   const title = 'Check the math';
-  const body = 'This change introduces a structured approach to configuration management and improves maintainability.';
+  const body = 'This change introduces a structured approach to configuration management and improves maintainability. It provides a comprehensive solution that enhances reliability, streamlines workflows, and ensures consistent behavior across the application.';
   const run = await runBuilt(t, { eventName: 'pull_request_target', fixture: eventFor('pull_request_target', { item: 34, title, body }), pages: [[]], apiFailureAt: 1 });
   assert.equal(run.result.status, 1);
   assert.equal(run.output, 'outcome=error\n');

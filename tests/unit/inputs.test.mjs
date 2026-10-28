@@ -54,7 +54,7 @@ test('rejects invalid runner repo and oversized or invalid-UTF8 event bytes', ()
 });
 
 test('defaults allowlist and validates literal response and fixed cutoff', () => {
-  assert.deepEqual(parsePolicy({}), { allowlist: [], response: "AI-assisted code is welcome. Please describe your work in your own words. This automated review can make mistakes. If this submission does not meet the repository's contribution policy, maintainers may close it. Contact a maintainer if you need help.", cutoff: 0.6 });
+  assert.deepEqual(parsePolicy({}), { allowlist: [], response: "AI-assisted code is welcome. Please describe your work in your own words. This automated review can make mistakes. If this submission does not meet the repository's contribution policy, maintainers may close it. Contact a maintainer if you need help.", cutoff: 0.8 });
   assert.deepEqual(parsePolicy(validInputs).allowlist, []);
   assert.deepEqual(parsePolicy({ allowlist: '["Alice", "dependabot[bot]"]', response: 'Exact words.' }).allowlist, ['Alice', 'dependabot[bot]']);
   for (const bad of [
@@ -73,7 +73,7 @@ test('lazy eligible continuation runs only for eligible valid inputs', async () 
   assert.deepEqual(await run(async (context, policy) => {
     calls.push('eligible');
     assert.equal(context.kind, 'issue');
-    assert.equal(policy.cutoff, 0.6);
+    assert.equal(policy.cutoff, 0.8);
     return { outcome: 'eligible' };
   }), { outcome: 'eligible' });
   assert.deepEqual(calls, ['eligible']);

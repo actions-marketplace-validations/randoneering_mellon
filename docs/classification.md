@@ -12,4 +12,4 @@ Mellon normalizes CRLF and CR to LF, excludes complete CommonMark fenced-code an
 
 Inference is local and uses the pinned detector and bundled model assets. A score is a fallible signal, not a calibrated probability for pull requests or issues, and it does not prove who wrote code, whether a contributor understands the work, or whether a contribution is good. Do not treat the score as a fraction of AI authorship. Historical evaluation, calibration, and training are outside v1 and remain separate follow-up work.
 
-An inclusive unrounded score of `0.60` is the fixed moderation cutoff. Workflow policy uses an exact-account JSON allowlist and literal response text as described in [workflow configuration](configuration.md). Submitted text cannot configure policy, execute code, or alter the model. No network fetch is used for inference.
+An inclusive unrounded score of `0.80` is the fixed moderation cutoff. Workflow policy uses an exact-account JSON allowlist and literal response text as described in [workflow configuration](configuration.md). Submitted text cannot configure policy, execute code, or alter the model. No network fetch is used for inference.

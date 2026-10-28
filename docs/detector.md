@@ -34,8 +34,8 @@ The exact runtime versions are `wink-nlp` 2.4.0 and `wink-eng-lite-web-model` 1.
 4. Update provenance, exact npm versions, and the lock file.
 5. Run asset verification, source tests, and bundled parity before adoption.
 
-Do not fetch a model, script, or npm package during classification. Changes to model bytes or preprocessing can change moderation outcomes even when the policy cutoff stays `0.60`.
+Do not fetch a model, script, or npm package during classification. Changes to model bytes or preprocessing can change moderation outcomes even when the policy cutoff stays `0.80`.
 
 ## Limitations
 
-The detector was trained on code comments; its probabilities are **not validated for issue/PR prose**. The `0.60` cutoff is a repository policy threshold, not a calibrated authorship probability. A score cannot establish authorship, an AI-written fraction, contribution quality, or the contributor's understanding. AI-assisted code is welcome; contributors should understand their work and describe it in their own words. Short input and retained repository template text can influence results.
+The detector was trained on code comments; its probabilities are **not validated for issue/PR prose**. The `0.80` cutoff is a repository policy threshold, not a calibrated authorship probability. A score cannot establish authorship, an AI-written fraction, contribution quality, or the contributor's understanding. AI-assisted code is welcome; contributors should understand their work and describe it in their own words. Short input and retained repository template text can influence results.

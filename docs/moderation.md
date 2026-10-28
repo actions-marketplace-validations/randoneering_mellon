@@ -1,8 +1,8 @@
 # Submission moderation
 
-Mellon processes only supported issue and `pull_request_target` opening events. It prepares the opening title and body, then lazily runs the bundled local classifier for eligible, nonempty submissions. A score below the fixed `0.60` cutoff leaves GitHub unchanged. A score at or above the cutoff triggers a current-state check, a moderation response, a second state check, and closure through the issue- or pull-request-specific API endpoint.
+Mellon processes only supported issue and `pull_request_target` opening events. It prepares the opening title and body, then lazily runs the bundled local classifier for eligible, nonempty submissions. A score below the fixed `0.80` cutoff leaves GitHub unchanged. A score at or above the cutoff triggers a current-state check, a moderation response, a second state check, and closure through the issue- or pull-request-specific API endpoint.
 
-The default response welcomes AI-assisted code while asking contributors to describe the work in their own words. The automated result can be wrong; it is not proof of authorship, code quality, or understanding. The model probabilities are not validated for issue or pull-request moderation and `0.60` is a repository policy cutoff, not a calibrated authorship probability.
+The default response welcomes AI-assisted code while asking contributors to describe the work in their own words. The automated result can be wrong; it is not proof of authorship, code quality, or understanding. The model probabilities are not validated for issue or pull-request moderation and `0.80` is a repository policy cutoff, not a calibrated authorship probability.
 
 ## Writes and reruns
 
