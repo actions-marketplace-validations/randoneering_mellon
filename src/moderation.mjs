@@ -1,7 +1,7 @@
 import { createEligibleContinuation } from './inputs.mjs';
 import { prepareSubmission } from './prepare.mjs';
 
-export const CUTOFF = 0.6;
+export const CUTOFF = 0.8;
 export const DEFAULT_RESPONSE = "AI-assisted code is welcome. Please describe your work in your own words. This automated review can make mistakes. If this submission does not meet the repository's contribution policy, maintainers may close it. Contact a maintainer if you need help.";
 const PROTOCOL = 'mellon-submission-moderation-v1';
 

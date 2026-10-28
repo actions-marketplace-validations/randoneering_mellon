@@ -39,7 +39,7 @@ Metadata exposes `token`, `allowlist`, and `response`; it reports safe `outcome`
 | `allowlist` | Empty JSON array `[]` | JSON array of exact account logins. Case-insensitive equality only, including explicitly named bot accounts; no wildcards or implicit role exemptions. |
 | `response` | Packaged human-voice message | Literal, nonempty UTF-8 text, at most 32 KiB. No interpolation or template evaluation. |
 
-For GitHub Actions, an empty allowlist input uses the default empty list, and an empty response input uses the packaged response. Malformed nonempty policy values fail before inference or writes. Do not supply a cutoff, API host, model path, executable path, or configuration-file input. The cutoff remains fixed at inclusive unrounded `0.60`. Submission text, workspace files, and `.mellon.json` cannot set policy.
+For GitHub Actions, an empty allowlist input uses the default empty list, and an empty response input uses the packaged response. Malformed nonempty policy values fail before inference or writes. Do not supply a cutoff, API host, model path, executable path, or configuration-file input. The cutoff remains fixed at inclusive unrounded `0.80`. Submission text, workspace files, and `.mellon.json` cannot set policy.
 
 The default response welcomes AI-assisted code while asking contributors to describe the work in their own words, explains that automated classification can be mistaken, and points contributors to maintainers. The score is not proof of authorship, understanding, or contribution quality. Issue and PR calibration is unvalidated; the cutoff is a repository policy threshold, not a calibrated authorship probability. Historical dataset evaluation and calibration remain separate follow-up work.
 

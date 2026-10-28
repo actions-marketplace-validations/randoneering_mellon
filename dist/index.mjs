@@ -7729,7 +7729,7 @@ function parsePolicy(inputs = {}) {
   const response = inputs.response === void 0 ? DEFAULT_RESPONSE : inputs.response;
   if (typeof response !== "string" || !validText(response) || Buffer.byteLength(response, "utf8") > RESPONSE_LIMIT) throw invalidInput();
   if (Object.keys(inputs).some((key) => !["allowlist", "response"].includes(key))) throw invalidInput();
-  return { allowlist, response, cutoff: 0.6 };
+  return { allowlist, response, cutoff: 0.8 };
 }
 function createEligibleContinuation({ getContext, getInputs }) {
   return async function run(continueEligible) {
@@ -12865,7 +12865,7 @@ function prepareSubmission(title, body = null) {
 }
 
 // src/moderation.mjs
-var CUTOFF = 0.6;
+var CUTOFF = 0.8;
 var PROTOCOL = "mellon-submission-moderation-v1";
 function safeFailure(message, state = {}) {
   const { commentPosted, uncertain, ...metadata } = state;

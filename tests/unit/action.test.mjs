@@ -95,8 +95,9 @@ test('a real packaged scorer runs with trusted packaged detector assets', async 
     fetchImpl: async () => new Response('[]', { status: 200 }),
     actionDirectory: path.resolve('dist'),
   });
-  assert.equal(result.outcome, 'error');
-  assert.equal(await readFile(outputPath, 'utf8'), 'outcome=error\n');
+  assert.equal(result.outcome, 'below_cutoff');
+  assert.ok(result.robotScore >= 0.6 && result.robotScore < 0.8);
+  assert.match(await readFile(outputPath, 'utf8'), /^outcome=below_cutoff\nrobot-score=0\.\d+\n$/);
 });
 
 test('normal no-score outcomes write only validated output records', async (t) => {

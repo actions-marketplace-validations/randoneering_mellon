@@ -1,6 +1,6 @@
 # Mellon
 
-Mellon is a JavaScript GitHub Action for a repository's human-voice contribution policy. AI-assisted code is welcome; contributors should describe their work in their own words. The Action reviews only opening issue and pull-request titles and bodies, excludes fenced code and blockquotes, and applies a fixed inclusive `0.60` robot-score cutoff. Scores are fallible and have not been validated for issue or pull-request moderation.
+Mellon is a JavaScript GitHub Action for a repository's human-voice contribution policy. AI-assisted code is welcome; contributors should describe their work in their own words. The Action reviews only opening issue and pull-request titles and bodies, excludes fenced code and blockquotes, and applies a fixed inclusive `0.80` robot-score cutoff. Scores are fallible and have not been validated for issue or pull-request moderation.
 
 The Action uses Node 24 on maintained Linux runners and rejects UID 0 before inference or GitHub operations. It is the supported runtime. Existing Go files remain historical and are not an Action runtime, CLI, or supported installation path.
 

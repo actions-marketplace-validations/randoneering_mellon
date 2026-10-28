@@ -77,7 +77,7 @@ export function parsePolicy(inputs = {}) {
   const response = inputs.response === undefined ? DEFAULT_RESPONSE : inputs.response;
   if (typeof response !== 'string' || !validText(response) || Buffer.byteLength(response, 'utf8') > RESPONSE_LIMIT) throw invalidInput();
   if (Object.keys(inputs).some((key) => !['allowlist', 'response'].includes(key))) throw invalidInput();
-  return { allowlist, response, cutoff: 0.6 };
+  return { allowlist, response, cutoff: 0.8 };
 }
 
 export function createEligibleContinuation({ getContext, getInputs }) {

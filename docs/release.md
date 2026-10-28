@@ -10,7 +10,7 @@ A consumer workflow must pin the actual reviewed release commit, not a mutable b
 
 The supported runtime is Node 24 on maintained Linux runners. UID zero causes a safe failure before classification or GitHub operations; do not add sudo, root bootstraps, or privilege changes. The Action, Markdown parser, inference code, and runtime dependencies share one process and the token's trust boundary. Dependencies are not isolated from the credential. The `pull_request_target` workflow must not check out the consumer repository or execute PR-controlled source, artifacts, or policy files.
 
-The default response welcomes AI-assisted code and asks contributors to describe work in their own words. The score is a fallible signal, not proof of authorship, understanding, or quality. Issue and PR calibration has not been validated; `0.60` is a fixed moderation policy cutoff, not a calibrated authorship probability. Historical evaluation and training are separate follow-up work.
+The default response welcomes AI-assisted code and asks contributors to describe work in their own words. The score is a fallible signal, not proof of authorship, understanding, or quality. Issue and PR calibration has not been validated; `0.80` is a fixed moderation policy cutoff, not a calibrated authorship probability. Historical evaluation and training are separate follow-up work.
 
 ## Upgrade and rollback
 

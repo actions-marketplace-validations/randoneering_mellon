@@ -9,7 +9,7 @@ const event = { action: 'opened', repository: { full_name: 'o/r' }, issue: { num
 function result(score) {
   return { protocol_version: 1, outcome: 'classified', robot_score: score, detector_revision: revision, model_sha256: hash, input_sha256: inputHash };
 }
-function setup(scoreValue = 0.6, options = {}) {
+function setup(scoreValue = 0.8, options = {}) {
   const calls = [];
   const api = {
     async listComments() { calls.push('comments'); return options.comments ?? []; },
@@ -25,7 +25,7 @@ const getInputs = () => ({});
 const marker = `<!-- mellon-submission-moderation-v1 repo=o/r item=4 input=${inputHash} detector=${revision} model=${hash} -->`;
 
 test('uses real classifier result and enforces inclusive unrounded cutoff', async () => {
-  for (const [value, expected] of [[0.599999, 'below_cutoff'], [0.6, 'closed'], [0.600001, 'closed']]) {
+  for (const [value, expected] of [[0.6, 'below_cutoff'], [0.799999, 'below_cutoff'], [0.8, 'closed'], [0.800001, 'closed']]) {
     const fixture = setup(value);
     const outcome = await moderate({ getContext, getInputs, api: fixture.api, score: fixture.score });
     assert.equal(outcome.outcome, expected);
@@ -35,17 +35,17 @@ test('uses real classifier result and enforces inclusive unrounded cutoff', asyn
 });
 
 test('reuses only a genuine bot comment and checks state before response and closure', async () => {
-  const fixture = setup(0.6, { comments: [{ id: 3, body: `spoof ${marker}`, user: { login: 'contributor', type: 'User' } }] });
+  const fixture = setup(0.8, { comments: [{ id: 3, body: `spoof ${marker}`, user: { login: 'contributor', type: 'User' } }] });
   const outcome = await moderate({ getContext, getInputs, api: fixture.api, score: fixture.score });
   assert.equal(outcome.outcome, 'closed');
   assert.deepEqual(fixture.calls, ['comments', 'state', 'post', 'state', 'close']);
 });
 
 test('changed current state prevents response and post-response change reports partial skip', async () => {
-  const changed = setup(0.6, { states: [{ state: 'open', title: 'changed', body: 'Body' }] });
+  const changed = setup(0.8, { states: [{ state: 'open', title: 'changed', body: 'Body' }] });
   assert.equal((await moderate({ getContext, getInputs, api: changed.api, score: changed.score })).outcome, 'skipped');
   assert.deepEqual(changed.calls, ['comments', 'state']);
-  const later = setup(0.6, { states: [{ state: 'open', title: 'Title', body: 'Body' }, { state: 'closed', title: 'Title', body: 'Body' }] });
+  const later = setup(0.8, { states: [{ state: 'open', title: 'Title', body: 'Body' }, { state: 'closed', title: 'Title', body: 'Body' }] });
   const outcome = await moderate({ getContext, getInputs, api: later.api, score: later.score });
   assert.equal(outcome.outcome, 'skipped');
   assert.equal(outcome.partial, true);
