@@ -16,6 +16,27 @@ test('CI installs detector dependencies before tests and builds', () => {
   assert.ok(buildTest > install, 'detector dependencies must be installed before build tests');
 });
 
+test('CI checks that built distribution files match the checkout', () => {
+  const workflow = parse(readFileSync(new URL('../../.github/workflows/test.yml', import.meta.url), 'utf8'));
+  const steps = workflow.jobs.test.steps;
+  const build = steps.findIndex(step => step.run === 'npm run build');
+  const check = steps.findIndex(step => step.name === 'Check distribution is committed');
+  assert.ok(build >= 0 && check > build, 'CI must check distribution files after building');
+  assert.match(steps[check].run, /git status --porcelain --untracked-files=all -- dist/);
+  assert.match(steps[check].run, /exit 1/);
+});
+
+test('release drafter runs on main with a pinned action and does not publish', () => {
+  const workflow = parse(readFileSync(new URL('../../.github/workflows/release-drafter.yml', import.meta.url), 'utf8'));
+  assert.deepEqual(workflow.on, { push: { branches: ['main'] } });
+  assert.deepEqual(workflow.permissions, { contents: 'write', 'pull-requests': 'read' });
+  const step = workflow.jobs.draft.steps[0];
+  assert.match(step.uses, /^release-drafter\/release-drafter@[a-f0-9]{40}$/);
+  assert.equal(step.with.publish, false);
+  const config = parse(readFileSync(new URL('../../.github/release-drafter.yml', import.meta.url), 'utf8'));
+  assert.match(config.template, /\$CHANGES/);
+});
+
 test('release validator accepts metadata and consumer template boundaries', () => {
   const result = spawnSync(process.execPath, ['scripts/validate-release.mjs'], {
     cwd: root, encoding: 'utf8', timeout: 30_000,

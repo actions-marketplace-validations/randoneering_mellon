@@ -1,0 +1,26 @@
+name-template: 'v$RESOLVED_VERSION'
+tag-template: 'v$RESOLVED_VERSION'
+change-template: '- $TITLE (#$NUMBER) by $AUTHORS'
+change-title-escapes: '\<*_&'
+categories:
+  - title: Features
+    when:
+      labels: [feature, enhancement, feat]
+  - title: Fixes
+    when:
+      labels: [bug, bugfix, fix]
+  - title: Other changes
+  - type: version-resolver
+    semver-increment: major
+    when:
+      labels: [major, breaking]
+  - type: version-resolver
+    semver-increment: minor
+    when:
+      labels: [minor, feature, enhancement, feat]
+  - type: version-resolver
+    semver-increment: patch
+template: |
+  ## Changes
+
+  $CHANGES
