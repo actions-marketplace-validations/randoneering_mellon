@@ -19,6 +19,50 @@ test('GitHub client requests fixed trusted issue resources with bounded credenti
   assert.equal(calls[0].options.signal instanceof AbortSignal, true);
 });
 
+test('GitHub client supports fixed review-label lookup, create, and application requests', async () => {
+  const calls = [];
+  const client = createGitHubClient({ token: 'token', fetchImpl: async (url, options) => {
+    calls.push({ url: String(url), options });
+    if (options.method === 'GET') return new Response(null, { status: 404 });
+    if (new URL(url).pathname.endsWith('/issues/4/labels')) {
+      return new Response('[{"name":"mellon: review"}]', { status: 200 });
+    }
+    return new Response('{"name":"mellon: review"}', { status: 201 });
+  } });
+  assert.deepEqual(await client.getReviewLabel({ repository: 'o/r' }), { exists: false });
+  await client.createReviewLabel({ repository: 'o/r' });
+  await client.addLabel({ repository: 'o/r', number: 4 });
+  assert.deepEqual(calls.map(call => [call.options.method, new URL(call.url).pathname]), [
+    ['GET', '/repos/o/r/labels/mellon%3A%20review'],
+    ['POST', '/repos/o/r/labels'],
+    ['POST', '/repos/o/r/issues/4/labels'],
+  ]);
+  assert.deepEqual(JSON.parse(calls[1].options.body), { name: 'mellon: review', color: 'ededed', description: 'Flagged by Mellon observation mode.' });
+  assert.deepEqual(JSON.parse(calls[2].options.body), { labels: ['mellon: review'] });
+});
+
+test('label creation 422 race is reconciled, while unrelated failures remain errors', async () => {
+  const calls = [];
+  let labelAvailable = false;
+  const client = createGitHubClient({ token: 'token', fetchImpl: async (url, options) => {
+    const pathname = new URL(url).pathname;
+    calls.push([options.method, pathname]);
+    if (options.method === 'POST' && pathname === '/repos/o/r/labels') {
+      return new Response(JSON.stringify({ message: 'Validation Failed' }), { status: 422 });
+    }
+    if (pathname.includes('/labels/mellon%3A%20review')) {
+      labelAvailable = true;
+      return new Response(JSON.stringify({ name: 'mellon: review' }), { status: 200 });
+    }
+    return new Response('private failure', { status: 500 });
+  } });
+  await client.createReviewLabel({ repository: 'o/r' });
+  assert.equal(labelAvailable, true);
+  assert.deepEqual(calls, [['POST', '/repos/o/r/labels'], ['GET', '/repos/o/r/labels/mellon%3A%20review']]);
+  const unavailable = createGitHubClient({ token: 'token', fetchImpl: async () => new Response('private failure', { status: 500 }) });
+  await assert.rejects(unavailable.getReviewLabel({ repository: 'o/r' }), /failed safely/);
+});
+
 test('GitHub client uses correct closure endpoints and validates response identities', async () => {
   const calls = [];
   const client = createGitHubClient({ token: 'token', fetchImpl: async (url, options) => {

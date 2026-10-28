@@ -75,9 +75,11 @@ export function parsePolicy(inputs = {}) {
     typeof account !== 'string' || !ACCOUNT_PATTERN.test(account))) throw invalidInput();
 
   const response = inputs.response === undefined ? DEFAULT_RESPONSE : inputs.response;
-  if (typeof response !== 'string' || !validText(response) || Buffer.byteLength(response, 'utf8') > RESPONSE_LIMIT) throw invalidInput();
-  if (Object.keys(inputs).some((key) => !['allowlist', 'response'].includes(key))) throw invalidInput();
-  return { allowlist, response, cutoff: 0.8 };
+  const mode = inputs.mode === undefined ? 'enforce' : inputs.mode;
+  if (typeof response !== 'string' || !validText(response) || Buffer.byteLength(response, 'utf8') > RESPONSE_LIMIT ||
+      mode !== 'enforce' && mode !== 'observe') throw invalidInput();
+  if (Object.keys(inputs).some((key) => !['allowlist', 'response', 'mode'].includes(key))) throw invalidInput();
+  return { allowlist, response, cutoff: 0.8, mode };
 }
 
 export function createEligibleContinuation({ getContext, getInputs }) {

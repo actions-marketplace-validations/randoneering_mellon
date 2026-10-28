@@ -3,7 +3,7 @@ description: Apply a repository human-voice contribution policy to opening issue
 author: Mellon
 inputs:
   token:
-    description: Token limited to required issue and pull request moderation permissions.
+    description: Token with the required issues and pull request permissions for API operations.
     required: false
   allowlist:
     description: JSON array of exact account logins to exempt.
@@ -11,6 +11,10 @@ inputs:
   response:
     description: Literal moderation response text. Empty means use the packaged default.
     required: false
+  mode:
+    description: Enforcement behavior. Use observe to apply a review label without commenting or closing. Defaults to enforce.
+    required: false
+    default: enforce
 outputs:
   outcome:
     description: Safe moderation outcome enum.

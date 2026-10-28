@@ -53,13 +53,22 @@ test('rejects invalid runner repo and oversized or invalid-UTF8 event bytes', ()
   assert.throws(() => parseEvent({ ...runner, payload: issue, eventBytes: Buffer.from([0xc3, 0x28]) }));
 });
 
+test('defaults to enforce and accepts only explicit enforce or observe mode', () => {
+  assert.equal(parsePolicy({}).mode, 'enforce');
+  assert.equal(parsePolicy({ mode: 'observe' }).mode, 'observe');
+  assert.equal(parsePolicy({ mode: 'enforce' }).mode, 'enforce');
+  for (const mode of ['', 'Observe', 'observe ', 'enforced', null, 1]) {
+    assert.throws(() => parsePolicy({ mode }));
+  }
+});
+
 test('defaults allowlist and validates literal response and fixed cutoff', () => {
-  assert.deepEqual(parsePolicy({}), { allowlist: [], response: "AI-assisted code is welcome. Please describe your work in your own words. This automated review can make mistakes. If this submission does not meet the repository's contribution policy, maintainers may close it. Contact a maintainer if you need help.", cutoff: 0.8 });
+  assert.deepEqual(parsePolicy({}), { allowlist: [], response: "AI-assisted code is welcome. Please describe your work in your own words. This automated review can make mistakes. If this submission does not meet the repository's contribution policy, maintainers may close it. Contact a maintainer if you need help.", cutoff: 0.8, mode: 'enforce' });
   assert.deepEqual(parsePolicy(validInputs).allowlist, []);
   assert.deepEqual(parsePolicy({ allowlist: '["Alice", "dependabot[bot]"]', response: 'Exact words.' }).allowlist, ['Alice', 'dependabot[bot]']);
   for (const bad of [
     { allowlist: '' }, { allowlist: '{"account":"a"}' }, { allowlist: '["*"]' }, { allowlist: '[" "]' },
-    { allowlist: '[1]' }, { allowlist: '[] trailing' }, { response: '' }, { response: '   ' },
+    { allowlist: '[1]' }, { allowlist: '[] trailing' }, { response: '' }, { mode: 'observe', apiHost: 'x' }, { response: '   ' },
     { response: 'é'.repeat(16385) }, { cutoff: '0.2' }, { apiHost: 'evil.invalid' },
   ]) assert.throws(() => parsePolicy({ ...validInputs, ...bad }));
 });

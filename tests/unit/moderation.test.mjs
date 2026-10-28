@@ -22,6 +22,7 @@ function setup(scoreValue = 0.8, options = {}) {
 }
 const getContext = () => ({ eventName: 'issues', repository: 'o/r', payload: event });
 const getInputs = () => ({});
+const observeInputs = () => ({ mode: 'observe' });
 const marker = `<!-- mellon-submission-moderation-v1 repo=o/r item=4 input=${inputHash} detector=${revision} model=${hash} -->`;
 
 test('uses real classifier result and enforces inclusive unrounded cutoff', async () => {
@@ -32,6 +33,68 @@ test('uses real classifier result and enforces inclusive unrounded cutoff', asyn
     assert.equal(fixture.scored, 1);
     assert.equal(fixture.calls.includes('post'), expected === 'closed');
   }
+});
+
+test('observe mode flags at the inclusive cutoff using only state checks and label operations for an issue', async () => {
+  const fixture = setup(0.8);
+  fixture.api.getReviewLabel = async () => { fixture.calls.push('label_lookup'); return { exists: false }; };
+  fixture.api.createReviewLabel = async () => { fixture.calls.push('label_create'); };
+  fixture.api.addLabel = async () => { fixture.calls.push('label_apply'); };
+  const outcome = await moderate({ getContext, getInputs: observeInputs, api: fixture.api, score: fixture.score });
+  assert.equal(outcome.outcome, 'flagged');
+  assert.equal(outcome.score, 0.8);
+  assert.deepEqual(fixture.calls, ['state', 'label_lookup', 'label_create', 'state', 'label_apply']);
+});
+
+test('observe mode flags pull requests through issue-label operations', async () => {
+  const calls = [];
+  const context = { eventName: 'pull_request_target', repository: 'o/r', payload: {
+    action: 'opened', repository: { full_name: 'o/r' }, pull_request: { number: 4, title: 'Title', body: 'Body', user: { login: 'contributor' } },
+  } };
+  const api = {
+    async getItem() { calls.push('state'); return { state: 'open', title: 'Title', body: 'Body', merged: false }; },
+    async getReviewLabel() { calls.push('label_lookup'); return { exists: true }; },
+    async createReviewLabel() { calls.push('label_create'); },
+    async addLabel(item) { calls.push(`label_apply:${item.kind}`); },
+  };
+  const outcome = await moderate({ getContext: () => context, getInputs: observeInputs, api, score: async () => result(0.85) });
+  assert.equal(outcome.outcome, 'flagged');
+  assert.deepEqual(calls, ['state', 'label_lookup', 'state', 'label_apply:pull_request']);
+});
+
+test('observe mode does not mask a definite label creation failure', async () => {
+  const fixture = setup(0.9);
+  fixture.api.getReviewLabel = async () => { fixture.calls.push('label_lookup'); return { exists: false }; };
+  fixture.api.createReviewLabel = async () => { fixture.calls.push('label_create'); const error = new Error('safe API failure'); error.status = 403; throw error; };
+  fixture.api.addLabel = async () => { fixture.calls.push('label_apply'); };
+  const outcome = await moderate({ getContext, getInputs: observeInputs, api: fixture.api, score: fixture.score });
+  assert.equal(outcome.outcome, 'error');
+  assert.deepEqual(fixture.calls, ['state', 'label_lookup', 'label_create']);
+});
+
+test('observe mode reuses existing label and skips stale state without any label write', async () => {
+  const existing = setup(0.9);
+  existing.api.getReviewLabel = async () => { existing.calls.push('label_lookup'); return { exists: true }; };
+  existing.api.createReviewLabel = async () => { existing.calls.push('label_create'); };
+  existing.api.addLabel = async () => { existing.calls.push('label_apply'); };
+  const observed = await moderate({ getContext, getInputs: observeInputs, api: existing.api, score: existing.score });
+  assert.equal(observed.outcome, 'flagged');
+  assert.deepEqual(existing.calls, ['state', 'label_lookup', 'state', 'label_apply']);
+  const stale = setup(0.9, { states: [{ state: 'closed', title: 'Title', body: 'Body' }] });
+  stale.api.getReviewLabel = async () => { stale.calls.push('label_lookup'); return { exists: false }; };
+  stale.api.createReviewLabel = async () => { stale.calls.push('label_create'); };
+  stale.api.addLabel = async () => { stale.calls.push('label_apply'); };
+  assert.equal((await moderate({ getContext, getInputs: observeInputs, api: stale.api, score: stale.score })).outcome, 'skipped');
+  assert.deepEqual(stale.calls, ['state']);
+});
+
+test('observe mode below cutoff does not read or write GitHub and enforce default remains unchanged', async () => {
+  const below = setup(0.799999);
+  assert.equal((await moderate({ getContext, getInputs: observeInputs, api: below.api, score: below.score })).outcome, 'below_cutoff');
+  assert.deepEqual(below.calls, []);
+  const enforce = setup(0.8);
+  assert.equal((await moderate({ getContext, getInputs, api: enforce.api, score: enforce.score })).outcome, 'closed');
+  assert.deepEqual(enforce.calls, ['comments', 'state', 'post', 'state', 'close']);
 });
 
 test('reuses only a genuine bot comment and checks state before response and closure', async () => {

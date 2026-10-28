@@ -6,7 +6,7 @@ import { createGitHubClient } from './github.mjs';
 import { moderate } from './moderation.mjs';
 
 const EVENT_LIMIT = 4 * 1024 * 1024;
-const OUTCOMES = new Set(['skipped', 'empty_input', 'below_cutoff', 'closed', 'error']);
+const OUTCOMES = new Set(['skipped', 'empty_input', 'below_cutoff', 'closed', 'flagged', 'error']);
 const ACTION_DIRECTORY = fileURLToPath(new URL('./', import.meta.url));
 const ASSET_DIGESTS = new Map([
   ['preprocess.mjs', '14c86ef36a82cf603ef8120e5c4cc96a30ec0427650ca42ff20d3eb1217db984'],
@@ -166,9 +166,11 @@ export async function runAction({
       const getInputs = () => {
         const allowlist = typeof getInput === 'function' ? getInput('allowlist') : '';
         const response = typeof getInput === 'function' ? getInput('response') : '';
+        const mode = typeof getInput === 'function' ? getInput('mode') : '';
         return {
           ...(allowlist === '' ? {} : { allowlist }),
           ...(response === '' ? {} : { response }),
+          ...(mode === '' ? {} : { mode }),
         };
       };
       let api;
@@ -184,6 +186,9 @@ export async function runAction({
         getItem: (...args) => lazyApi().getItem(...args),
         createComment: (...args) => lazyApi().createComment(...args),
         closeItem: (...args) => lazyApi().closeItem(...args),
+        getReviewLabel: (...args) => lazyApi().getReviewLabel(...args),
+        createReviewLabel: (...args) => lazyApi().createReviewLabel(...args),
+        addLabel: (...args) => lazyApi().addLabel(...args),
       };
       result = await moderate({
         getContext,
@@ -217,17 +222,18 @@ async function writeSummary(filename, result) {
   const labels = {
     skipped: 'Skipped', empty_input: 'No prose to classify',
     below_cutoff: 'Below moderation cutoff', closed: 'Closed after confirmed response',
-    error: 'Operational error',
+    flagged: 'Flagged for review', error: 'Operational error',
   };
   const score = result.robotScore === undefined ? '' : `\n\nRobot score: ${result.robotScore}.`;
   const partial = result.outcome === 'error' && result.partial
     ? `\n\nResponse confirmed: yes\nClosure completed: no${result.commentId === undefined ? '' : `\nComment ID: ${result.commentId}`}${result.provenance ? `\nDetector revision: ${result.provenance.detectorRevision}\nModel SHA-256: ${result.provenance.modelSha256}\nInput SHA-256: ${result.provenance.inputSha256}` : ''}`
     : '';
+  const labelNote = result.outcome === 'flagged' ? '\n\nLabel: mellon: review' : '';
   const uncertainty = result.outcome === 'error' && result.uncertainty
     ? '\n\nResponse confirmation: uncertain' : '';
   try {
     const handle = await open(filename, 'a');
-    try { await handle.writeFile(`## Mellon moderation\n\n${labels[result.outcome]}${score}${partial}${uncertainty}\n`, 'utf8'); }
+    try { await handle.writeFile(`## Mellon moderation\n\n${labels[result.outcome]}${score}${labelNote}${partial}${uncertainty}\n`, 'utf8'); }
     finally { await handle.close(); }
   } catch {
     // Summaries are optional and contain no event text or credentials.

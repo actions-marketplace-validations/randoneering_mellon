@@ -25,7 +25,7 @@ async function isolatedRelease(t) {
   return directory;
 }
 
-async function runBuilt(t, { eventName, fixture, pages, apiFailureAt, responseMode, initialState, unexpectedNetwork = false, merged = false, failClose = false }) {
+async function runBuilt(t, { eventName, fixture, pages = [[]], apiFailureAt, responseMode, initialState, unexpectedNetwork = false, merged = false, failClose = false, mode, labelFailure = false, labelExists = false }) {
   const directory = await isolatedRelease(t);
   const harness = await mkdtemp(path.join(os.tmpdir(), 'mellon-harness-'));
   t.after(() => rm(harness, { recursive: true, force: true }));
@@ -53,6 +53,19 @@ globalThis.fetch = async (input, init = {}) => {
   calls++;
   if (process.env.TEST_API_FAILURE_AT && calls === Number(process.env.TEST_API_FAILURE_AT)) {
     throw new Error('fixture API failure with sensitive fixture data');
+  }
+  if (url.pathname === '/repos/owner/repo/labels/mellon%3A%20review') {
+    return process.env.TEST_LABEL_EXISTS === 'true'
+      ? new Response(JSON.stringify({ name: 'mellon: review' }), { status: 200 })
+      : new Response(null, { status: 404 });
+  }
+  if (url.pathname === '/repos/owner/repo/labels' && init.method === 'POST') {
+    if (process.env.TEST_LABEL_FAILURE === 'true') return new Response('sensitive label API failure', { status: 403 });
+    return new Response(JSON.stringify({ name: 'mellon: review' }), { status: 201 });
+  }
+  if (url.pathname.startsWith('/repos/owner/repo/issues/') && url.pathname.endsWith('/labels') && init.method === 'POST') {
+    if (process.env.TEST_LABEL_FAILURE === 'true') return new Response('sensitive label API failure', { status: 403 });
+    return new Response(JSON.stringify([{ name: 'mellon: review' }]), { status: 200 });
   }
   if (url.pathname.endsWith('/comments') && (init.method || 'GET') === 'GET') {
     const page = Number(url.searchParams.get('page') || '1');
@@ -102,6 +115,7 @@ globalThis.fetch = async (input, init = {}) => {
     timeout: 30_000,
     maxBuffer: 128 * 1024,
     env: {
+      HOME: process.env.HOME,
       PATH: process.env.PATH,
       GITHUB_EVENT_NAME: eventName,
       GITHUB_REPOSITORY: 'owner/repo',
@@ -110,7 +124,10 @@ globalThis.fetch = async (input, init = {}) => {
       GITHUB_STEP_SUMMARY: summaryPath,
       INPUT_ALLOWLIST: '[]',
       INPUT_RESPONSE: 'This automated review is fallible. Please describe your own work.',
+      INPUT_MODE: mode ?? '',
       INPUT_TOKEN: token,
+      TEST_LABEL_FAILURE: labelFailure ? 'true' : '',
+      TEST_LABEL_EXISTS: labelExists ? 'true' : '',
       TEST_API_LOG: logPath,
       TEST_API_PAGES: JSON.stringify(pages),
       TEST_API_FAILURE_AT: apiFailureAt ? String(apiFailureAt) : '',
@@ -194,6 +211,70 @@ test('built issue Action uses packaged score and rejects an exact matching contr
   assert.equal(botComments.length, 1);
   assert.ok(botComments[0].includes(existingMarker));
   assertNoSensitiveOutput(run, [token, body, injectionText]);
+});
+
+test('built observe mode flags issue and PR using only repository label writes', async t => {
+  const cases = [
+    ['issues', 'issue', 61],
+    ['pull_request_target', 'pull_request', 62],
+  ];
+  for (const [eventName, kind, item] of cases) {
+    const title = 'Describe your work';
+    const body = 'The implementation provides a comprehensive, robust, and seamless solution that leverages systematic methods to enhance maintainability and functionality.';
+    const scorer = await import('../../dist/scorer.mjs');
+    const score = await scorer.scoreRequest({ protocol_version: 1, text: `${title}\n\n${body}` }, path.join(artifactDirectory, 'detector'));
+    assert.ok(score.robot_score >= 0.8, `fixture score ${score.robot_score} must reach observation cutoff`);
+    const run = await runBuilt(t, { eventName, fixture: eventFor(eventName, { item, title, body }), mode: 'observe' });
+    assert.equal(run.result.status, 0, `${run.result.stderr} output=${run.output} requests=${JSON.stringify(run.requests)}`);
+    assert.match(run.output, /^outcome=flagged\nrobot-score=0\.\d+\n$/);
+    assert.deepEqual(run.requests.map(({ method, pathname }) => [method, pathname]), [
+      ['GET', `/repos/owner/repo/${kind === 'issue' ? 'issues' : 'pulls'}/${item}`],
+      ['GET', '/repos/owner/repo/labels/mellon%3A%20review'],
+      ['POST', '/repos/owner/repo/labels'],
+      ['GET', `/repos/owner/repo/${kind === 'issue' ? 'issues' : 'pulls'}/${item}`],
+      ['POST', `/repos/owner/repo/issues/${item}/labels`],
+    ]);
+    assert.equal(run.requests.some(({ method, pathname }) => method === 'PATCH' || pathname.endsWith('/comments')), false);
+    assert.deepEqual(run.requests.at(-1).body, { labels: ['mellon: review'] });
+    assertNoSensitiveOutput(run, [token, body]);
+  }
+});
+
+test('built observe mode below cutoff makes no API requests', async t => {
+  const title = 'Check the math';
+  const body = 'This change introduces a structured approach to configuration management and improves maintainability.';
+  const scorer = await import('../../dist/scorer.mjs');
+  const score = await scorer.scoreRequest({ protocol_version: 1, text: `${title}\n\n${body}` }, path.join(artifactDirectory, 'detector'));
+  assert.ok(score.robot_score < 0.8, `fixture score ${score.robot_score} must be below observation cutoff`);
+  const run = await runBuilt(t, { eventName: 'issues', fixture: eventFor('issues', { item: 63, title, body }), mode: 'observe' });
+  assert.equal(run.result.status, 0, run.result.stderr);
+  assert.match(run.output, /^outcome=below_cutoff\nrobot-score=0\.\d+\n$/);
+  assert.deepEqual(run.requests, []);
+});
+
+test('built observe mode reports label API failure without posting or closing', async t => {
+  const title = 'Describe your work';
+  const body = 'The implementation provides a comprehensive, robust, and seamless solution that leverages systematic methods to enhance maintainability and functionality.';
+  const scorer = await import('../../dist/scorer.mjs');
+  const score = await scorer.scoreRequest({ protocol_version: 1, text: `${title}\n\n${body}` }, path.join(artifactDirectory, 'detector'));
+  assert.ok(score.robot_score >= 0.8);
+  const run = await runBuilt(t, { eventName: 'issues', fixture: eventFor('issues', { item: 64, title, body }), mode: 'observe', labelFailure: true });
+  assert.equal(run.result.status, 1);
+  assert.match(run.output, /^outcome=error\n$/);
+  assert.equal(run.requests.some(({ method, pathname }) => method === 'PATCH' || pathname.endsWith('/comments')), false);
+  assertNoSensitiveOutput(run, [token, body, 'sensitive label API failure']);
+});
+
+test('built observe mode reuses existing label without recreation or enforcement writes', async t => {
+  const title = 'Describe your work';
+  const body = 'The implementation provides a comprehensive, robust, and seamless solution that leverages systematic methods to enhance maintainability and functionality.';
+  const scorer = await import('../../dist/scorer.mjs');
+  assert.ok((await scorer.scoreRequest({ protocol_version: 1, text: `${title}\n\n${body}` }, path.join(artifactDirectory, 'detector'))).robot_score >= 0.8);
+  const run = await runBuilt(t, { eventName: 'issues', fixture: eventFor('issues', { item: 65, title, body }), mode: 'observe', labelExists: true });
+  assert.equal(run.result.status, 0, run.result.stderr);
+  assert.equal(run.requests.some(({ pathname }) => pathname === '/repos/owner/repo/labels'), false);
+  assert.equal(run.requests.some(({ method, pathname }) => method === 'PATCH' || pathname.endsWith('/comments')), false);
+  assert.equal(run.requests.at(-1).pathname, '/repos/owner/repo/issues/65/labels');
 });
 
 test('built pull request Action skips a merged PR before posting', async t => {
