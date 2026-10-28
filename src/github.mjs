@@ -145,7 +145,7 @@ export function createGitHubClient({ token, fetchImpl = fetch, timeoutMs = 30_00
     async createReviewLabel({ repository }) {
       if (typeof repository !== 'string' || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) throw safeError();
       const url = `${API_ROOT}/repos/${repository}/labels`;
-      const body = { name: REVIEW_LABEL, color: 'ededed', description: 'Flagged by Mellon observation mode.' };
+      const body = { name: REVIEW_LABEL, color: 'fbca04', description: 'Flagged by Mellon observation mode.' };
       try {
         await retryLabelRequest(url, { method: 'POST', body }, value => {
           if (!value || value.name !== REVIEW_LABEL) throw safeError();

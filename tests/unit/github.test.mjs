@@ -37,7 +37,7 @@ test('GitHub client supports fixed review-label lookup, create, and application 
     ['POST', '/repos/o/r/labels'],
     ['POST', '/repos/o/r/issues/4/labels'],
   ]);
-  assert.deepEqual(JSON.parse(calls[1].options.body), { name: 'mellon: review', color: 'ededed', description: 'Flagged by Mellon observation mode.' });
+  assert.deepEqual(JSON.parse(calls[1].options.body), { name: 'mellon: review', color: 'fbca04', description: 'Flagged by Mellon observation mode.' });
   assert.deepEqual(JSON.parse(calls[2].options.body), { labels: ['mellon: review'] });
 });
 
