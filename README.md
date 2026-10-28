@@ -14,8 +14,13 @@ mellon is a GitHub Action that reviews new issue and pull request descriptions.
 AI-assisted code is welcome, but contributors should describe their work in their own words.
 mellon scores the title and description after removing fenced code and blockquotes.
 
+mellon uses [aicomment](https://git.sr.ht/~kqr/aicomment), created by [Christoffer Stjernlöf (kqr)](https://xkqr.org/profile), for its classifier and model.
+Thanks to Christoffer for making this work available.
+You can try the [aicomment detector](https://xkqr.org/aicomment/) and read his posts on [Claude comment detection](https://entropicthoughts.com/ai-comment-classifier) and the [improved AI code comment detector](https://entropicthoughts.com/better-ai-comment-classifier).
+
 The score is a fallible signal, not proof of AI authorship.
-The model was trained on code comments and has not been calibrated for issues or pull requests.
+The current model was trained on code comments and has not been calibrated for issues or pull requests.
+I plan to train and tune the model using pull requests and comments to better fit the submissions mellon reviews.
 The fixed cutoff is **0.80**, including scores equal to 0.80.
 
 ## Set up the Action
