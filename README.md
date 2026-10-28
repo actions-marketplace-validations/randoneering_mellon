@@ -1,4 +1,14 @@
+<p align="center">
+  <img src="media/mellon.png" alt="Mellon logo" width="240">
+</p>
+
 # Mellon
+
+> “Speak, friend, and enter.”
+>
+> J. R. R. Tolkien, *The Fellowship of the Ring*
+
+Mellon means “friend” in Sindarin.
 
 Mellon is a GitHub Action that reviews new issue and pull request descriptions.
 AI-assisted code is welcome, but contributors should describe their work in their own words.
