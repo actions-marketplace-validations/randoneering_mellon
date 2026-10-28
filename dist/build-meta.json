@@ -1,0 +1,75 @@
+{
+  "entryPoint": "src/action.mjs",
+  "output": "dist/index.mjs",
+  "platform": "node",
+  "format": "esm",
+  "target": "node24",
+  "esbuildVersion": "0.28.2",
+  "imports": [
+    {
+      "path": "node:crypto",
+      "kind": "import-statement",
+      "external": true
+    },
+    {
+      "path": "node:fs/promises",
+      "kind": "import-statement",
+      "external": true
+    },
+    {
+      "path": "node:path",
+      "kind": "import-statement",
+      "external": true
+    },
+    {
+      "path": "node:url",
+      "kind": "import-statement",
+      "external": true
+    }
+  ],
+  "actionImports": [
+    {
+      "path": "node:fs/promises",
+      "kind": "import-statement",
+      "external": true
+    },
+    {
+      "path": "node:crypto",
+      "kind": "import-statement",
+      "external": true
+    },
+    {
+      "path": "node:path",
+      "kind": "import-statement",
+      "external": true
+    },
+    {
+      "path": "node:url",
+      "kind": "import-statement",
+      "external": true
+    }
+  ],
+  "scorerOutput": "dist/scorer.mjs",
+  "scorerImports": [
+    {
+      "path": "node:crypto",
+      "kind": "import-statement",
+      "external": true
+    },
+    {
+      "path": "node:fs/promises",
+      "kind": "import-statement",
+      "external": true
+    },
+    {
+      "path": "node:path",
+      "kind": "import-statement",
+      "external": true
+    },
+    {
+      "path": "node:url",
+      "kind": "import-statement",
+      "external": true
+    }
+  ]
+}
