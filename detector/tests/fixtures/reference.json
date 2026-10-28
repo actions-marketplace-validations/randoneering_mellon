@@ -1,0 +1,66 @@
+{
+  "detector_revision": "9d3abed60e628951c7b0d2cd1e1c69eddb23eb97",
+  "model_sha256": "228087029eceee8a1c6cd57f29ec484a0141c639f8ed139fd506ef27eaa98825",
+  "cases": [
+    {
+      "name": "short",
+      "text": "hello",
+      "input_sha256": "f87dfabbfd75a93b75bbe0fa02a1c271b02e21282dbcffaaef6aa4a9d19bd09c",
+      "robot_score": 0.4001795970633807
+    },
+    {
+      "name": "bug-report",
+      "text": "I get a crash when saving twice. This started after the last update.",
+      "input_sha256": "2b31a698a4214013f686db1dd780fb902a49e4a0bef7c7be2936a9030d9e3658",
+      "robot_score": 0.38002195927476756
+    },
+    {
+      "name": "question",
+      "text": "Can we make the timeout configurable? Mine takes about 90 seconds.",
+      "input_sha256": "29ae4f4750146d643d7a4a56fe1d71a02fed25ae2fc661ad8eef98fdc3ddfee0",
+      "robot_score": 0.15328015579816812
+    },
+    {
+      "name": "formal",
+      "text": "This change introduces a structured approach to configuration management and improves maintainability.",
+      "input_sha256": "3285dc2a9f7e3afedf96118262a0dd5fae976b555f6178ed8c95c8dda424442b",
+      "robot_score": 0.7956716677242156
+    },
+    {
+      "name": "punctuation",
+      "text": "Wait... why?! It worked yesterday; now it does not.",
+      "input_sha256": "812275eb87e302c967be8562b0a3a2282be834377643d190524de15a495d4265",
+      "robot_score": 0.652836194463597
+    },
+    {
+      "name": "non-ascii",
+      "text": "Le serveur échoue après le redémarrage. Où sont les journaux ?",
+      "input_sha256": "c16d8bf96f2dbef397c667c00891729e7b80349f5837ad6337f7130653e6f5b9",
+      "robot_score": 0.7991410523713383
+    },
+    {
+      "name": "mixed-script",
+      "text": "The server returns an error: 接続できません。",
+      "input_sha256": "49af8db0a6681e6ff30d8a26047fd4db781b7f17ec215b1394ef1744c6954af1",
+      "robot_score": 0.5963249415660827
+    },
+    {
+      "name": "template",
+      "text": "## Description\nThe app crashes.\n## Checklist\n- [x] I searched existing issues.",
+      "input_sha256": "5fa74e73890d89a93c32b48ec6db543e0f6fac4f05e4c2a44ad7e7b363c51506",
+      "robot_score": 0.6700270255856593
+    },
+    {
+      "name": "inline-code",
+      "text": "Calling `save()` twice raises EINVAL; I expected the second call to succeed.",
+      "input_sha256": "6c6537896b3949e6597fde1b5829fe7f23cc7c42a5fb6ed039d322304d27f525",
+      "robot_score": 0.691974951063589
+    },
+    {
+      "name": "longer",
+      "text": "I restarted the process and checked the logs. The first connection succeeds, but later attempts time out. I can reproduce this on two machines using the same configuration. Please let me know what else would help narrow it down.",
+      "input_sha256": "e04eea083e7d00742a0f32c79c70bc5044c78beea945cbeaefb7bb8690f16131",
+      "robot_score": 0.23794309292181826
+    }
+  ]
+}

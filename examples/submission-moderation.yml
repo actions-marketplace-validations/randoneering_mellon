@@ -1,0 +1,24 @@
+# Replace both placeholders with this repository's owner/name and a reviewed, immutable release commit SHA.
+name: Submission moderation
+on:
+  issues:
+    types: [opened]
+  pull_request_target:
+    types: [opened]
+permissions:
+  issues: write
+  pull-requests: write
+concurrency:
+  group: submission-moderation-${{ github.repository }}-${{ github.event.issue.number || github.event.pull_request.number }}
+  cancel-in-progress: false
+jobs:
+  moderate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Moderate opening submission
+        uses: OWNER/mellon@REPLACE_WITH_REVIEWED_40_CHARACTER_RELEASE_SHA
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          allowlist: '[]'
+          # Omit response to use the packaged human-voice message.

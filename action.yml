@@ -1,0 +1,21 @@
+name: Mellon submission moderation
+description: Apply a repository human-voice contribution policy to opening issues and pull requests.
+author: Mellon
+inputs:
+  token:
+    description: Token limited to required issue and pull request moderation permissions.
+    required: false
+  allowlist:
+    description: JSON array of exact account logins to exempt.
+    required: false
+  response:
+    description: Literal moderation response text. Empty means use the packaged default.
+    required: false
+outputs:
+  outcome:
+    description: Safe moderation outcome enum.
+  robot-score:
+    description: Finite robot score when classification produced one.
+runs:
+  using: node24
+  main: dist/index.mjs
