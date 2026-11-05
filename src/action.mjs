@@ -78,9 +78,12 @@ function normalizeResult(result) {
   if (hasScore && score === undefined) throw operationalError();
   const normalized = {
     outcome: result?.outcome,
+    ...(result?.outcome_labels_incomplete === true ? { outcomeLabelsIncomplete: true } : {}),
     ...(score === undefined ? {} : { robotScore: score }),
-    ...(result?.outcome === 'error' ? { partial: result.partial === true, commentId: validCommentId(result.comment_id),
-      uncertainty: result.uncertainty === true, provenance: validProvenance(result) } : {}),
+    ...(result?.outcome === 'flagged' ? { labelApplied: result.label_applied === true } : {}),
+    ...(result?.outcome === 'error' || result?.outcome === 'skipped' && result.partial === true
+      ? { partial: result.partial === true, commentId: validCommentId(result.comment_id),
+        uncertainty: result.uncertainty === true, provenance: validProvenance(result) } : {}),
   };
   formatOutputs(normalized);
   return normalized;
@@ -168,11 +171,13 @@ export async function runAction({
         const response = typeof getInput === 'function' ? getInput('response') : '';
         const mode = typeof getInput === 'function' ? getInput('mode') : '';
         const autoClose = typeof getInput === 'function' ? getInput('auto-close') : '';
+        const reviewLabel = typeof getInput === 'function' ? getInput('review-label') : '';
         return {
           ...(allowlist === '' ? {} : { allowlist }),
           ...(response === '' ? {} : { response }),
           ...(mode === '' ? {} : { mode }),
           ...(autoClose === '' ? {} : { autoClose }),
+          ...(reviewLabel === '' ? {} : { reviewLabel }),
         };
       };
       let api;
@@ -186,10 +191,13 @@ export async function runAction({
       const candidateApi = {
         listComments: (...args) => lazyApi().listComments(...args),
         getItem: (...args) => lazyApi().getItem(...args),
+        getItemLabels: (...args) => lazyApi().getItemLabels(...args),
         createComment: (...args) => lazyApi().createComment(...args),
         closeItem: (...args) => lazyApi().closeItem(...args),
         getReviewLabel: (...args) => lazyApi().getReviewLabel(...args),
         createReviewLabel: (...args) => lazyApi().createReviewLabel(...args),
+        getOutcomeLabel: (...args) => lazyApi().getOutcomeLabel(...args),
+        createOutcomeLabel: (...args) => lazyApi().createOutcomeLabel(...args),
         addLabel: (...args) => lazyApi().addLabel(...args),
       };
       result = await moderate({
@@ -228,15 +236,18 @@ async function writeSummary(filename, result) {
     flagged: 'Flagged for review', error: 'Operational error',
   };
   const score = result.robotScore === undefined ? '' : `\n\nRobot score: ${result.robotScore}.`;
-  const partial = result.outcome === 'error' && result.partial
+  const partial = result.partial
     ? `\n\nResponse confirmed: yes\nClosure completed: no${result.commentId === undefined ? '' : `\nComment ID: ${result.commentId}`}${result.provenance ? `\nDetector revision: ${result.provenance.detectorRevision}\nModel SHA-256: ${result.provenance.modelSha256}\nInput SHA-256: ${result.provenance.inputSha256}` : ''}`
     : '';
-  const labelNote = result.outcome === 'flagged' ? '\n\nLabel: mellon: review' : '';
+  const labelNote = result.outcome === 'flagged' && result.labelApplied
+    ? '\n\nLabel: mellon: review' : '';
   const uncertainty = result.outcome === 'error' && result.uncertainty
     ? '\n\nResponse confirmation: uncertain' : '';
+  const setupNote = result.outcomeLabelsIncomplete
+    ? '\n\nOutcome-label setup is incomplete. Create missing review outcome labels manually in repository settings.' : '';
   try {
     const handle = await open(filename, 'a');
-    try { await handle.writeFile(`## Mellon moderation\n\n${labels[result.outcome]}${score}${labelNote}${partial}${uncertainty}\n`, 'utf8'); }
+    try { await handle.writeFile(`## Mellon moderation\n\n${labels[result.outcome]}${score}${labelNote}${partial}${uncertainty}${setupNote}\n`, 'utf8'); }
     finally { await handle.close(); }
   } catch {
     // Summaries are optional and contain no event text or credentials.
